@@ -1928,18 +1928,21 @@ private:
     auto& expected_src = reorder_src ?
         src.reorder_if_differ_in(pd.src_desc()) :
         src;
+    if (reorder_src) {
+      dst.reinit_if_possible(pd.dst_desc());
+    }
     // make sure other has same format with dst.
-    // TODO: other has different with dst?
+    bool is_nhwc = dst.get_desc().is_nhwc();
+    bool is_ndhwc = dst.get_desc().is_ndhwc();
+    auto format_tag = is_nhwc ? tag::nhwc : (is_ndhwc ? tag::ndhwc : tag::any);
+    auto other_desc = other.get_desc().to_format(format_tag);
     auto& expected_other = reorder_src ?
-        other.reorder_if_differ_in(pd.dst_desc()) :
+        other.reorder_if_differ_in(other_desc) :
         other;
     auto&& grouped_weights = weights.make_grouped_weights(param.groups);
     auto&& expected_weights = reorder_weight ?
         grouped_weights.reorder_if_differ_in(pd.weights_desc()) :
         grouped_weights;
-    if (reorder_src) {
-      dst.reinit_if_possible(pd.dst_desc());
-    }
 
     exec_args args;
     args.insert({DNNL_ARG_SRC, expected_src});
