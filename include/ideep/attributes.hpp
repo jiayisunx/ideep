@@ -330,7 +330,7 @@ struct attr_t : public dnnl::primitive_attr {
     return po.len() > 0;
   }
 
-  std::tuple<kind, float, float, float, algorithm, int32_t> get_params(int index) const {
+  std::tuple<kind, float, float, float, algorithm, int32_t, memory::desc> get_params(int index) const {
     auto po = get_post_ops();
     IDEEP_ENFORCE(index < po.len(), "post_ops index is out of range");
 
@@ -356,7 +356,7 @@ struct attr_t : public dnnl::primitive_attr {
         break;
     }
 
-    return std::make_tuple(akind, scale, alpha, beta, alg, zero_point);
+    return std::make_tuple(akind, scale, alpha, beta, alg, zero_point, binary_src_desc);
   }
 
   bool non_negitive_output() const {
@@ -414,8 +414,9 @@ struct attr_t : public dnnl::primitive_attr {
       float l_scale = 1.0, l_alpha = 1.0, l_beta = 0.0;
       float r_scale = 1.0, r_alpha = 1.0, r_beta = 0.0;
       int32_t l_zp = 0, r_zp = 0;
-      std::tie(l_akind, l_scale, l_alpha, l_beta, l_alg, l_zp) = get_params(index);
-      std::tie(r_akind, r_scale, r_alpha, r_beta, r_alg, r_zp) =
+      memory::desc binary_src_desc;
+      std::tie(l_akind, l_scale, l_alpha, l_beta, l_alg, l_zp, binary_src_desc) = get_params(index);
+      std::tie(r_akind, r_scale, r_alpha, r_beta, r_alg, r_zp, binary_src_desc) =
           rhs.get_params(index);
       if (l_akind != r_akind || l_alg != r_alg || l_scale != r_scale ||
           l_alpha != r_alpha || l_beta != r_beta || l_zp != r_zp) {
@@ -433,7 +434,8 @@ struct attr_t : public dnnl::primitive_attr {
       algorithm alg = algorithm::undef;
       float scale = 1.0, alpha = 1.0, beta = 0.0;
       int32_t zp = 0;
-      std::tie(akind, scale, alpha, beta, alg, zp) = get_params(i);
+      memory::desc binary_src_desc;
+      std::tie(akind, scale, alpha, beta, alg, zp, binary_src_desc) = get_params(i);
 
       switch (akind) {
         case kind::sum:
@@ -457,6 +459,8 @@ struct attr_t : public dnnl::primitive_attr {
           utils::to_bytes(bytes, akind);
           bytes.append(1, '.');
           utils::to_bytes(bytes, alg);
+          bytes.append(1, '.');
+          utils::to_bytes(bytes, binary_src_desc.get_dims());
         default:
           break;
       }
