@@ -482,10 +482,10 @@ private:
 
     auto &expected_src =
         reorder_src ? src.reorder_if_differ_in(pd.src_desc(), src_attr) : src;
-    // make sure other has same format with dst.
-    // TODO: other has different with dst?
+    // make sure other has contiguous format.
+    auto other_desc = tensor::desc(other.get_dims(), other.get_data_type());
     auto &expected_other =
-        reorder_src ? other.reorder_if_differ_in(pd.dst_desc()) : other;
+        reorder_src ? other.reorder_if_differ_in(other_desc) : other;
     auto &expected_weights =
         reorder_weight
             ? weights.reorder_if_differ_in(pd.weights_desc(), weights_attr)
