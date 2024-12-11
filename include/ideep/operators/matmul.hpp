@@ -802,6 +802,7 @@ struct matmul_forward : public dnnl::matmul,
     attr_t& bias_attr = param.bias_attr;
     op_attr = attr;
     auto dst_data_type = data_type::f32;
+    auto wei_data_type = data_type::f32;
 
     tensor::dims src_dims = src.get_dims();
     tensor::dims dst_dims = {src_dims[0]};
@@ -818,29 +819,36 @@ struct matmul_forward : public dnnl::matmul,
     // introduces *an extra reorder* afterwards. Here we keep the weight format
     // untouched thanks to optimizations for both plain and transposed formats
     // in DNNL.
-    IDEEP_ENFORCE(weights.get_data_type() == data_type::f32 ||
-                  weights.get_data_type() == data_type::bf16 ||
-                  weights.get_data_type() == data_type::f16,
-                  "Incorrect data type in weights");
-    dst_data_type = src.get_data_type() == data_type::bf16 ?
-                    data_type::bf16 :
-                    ((src.get_data_type() == data_type::f16) ?
-                      data_type::f16 : data_type::f32);
-    src_desc = src.get_desc().to_type(dst_data_type);
+    IDEEP_ENFORCE(
+        weights.get_data_type() == data_type::f32 ||
+            weights.get_data_type() == data_type::bf16 ||
+            weights.get_data_type() == data_type::f16,
+        "Incorrect data type in weights");
 
+    dst_data_type = src.get_data_type() == data_type::bf16
+        ? ((dst.get_data_type() == data_type::f32) ? data_type::f32
+                                                   : data_type::bf16)
+        : ((src.get_data_type() == data_type::f16) ? data_type::f16
+                                                   : data_type::f32);
+    src_desc = (src.get_data_type() == data_type::bf16 &&
+                dst_data_type == data_type::f32)
+        ? src.get_desc()
+        : src.get_desc().to_type(dst_data_type);
+    wei_data_type = (src.get_data_type() == data_type::bf16 &&
+                   dst_data_type == data_type::f32) ? data_type::bf16 : dst_data_type;
 #ifdef __aarch64__
     // for aarch64 ACL backend with fixed format kernels, the weights are
     // always in blocked layout, so, set the descriptor to tag::any for the backend
     // to decide the format
-    weights_desc = tensor::desc(weights.get_dims(), dst_data_type, tag::any);
+    
+    weights_desc = tensor::desc(weights.get_dims(), wei_data_type, tag::any);
 #else
-
     // For fp32 matmul, weight (2nd input) is usually not in blocked layout
     // Plain layout runs faster as of oneDNN 3.0
     // Should use tag::any to query blocked layout if there is perf gain later
     weights_desc = weights.get_desc().is_plain() ?
-                   weights.get_desc().to_type(dst_data_type) :
-                   tensor::desc(weights.get_dims(), dst_data_type, tag::any);
+                   weights.get_desc().to_type(wei_data_type) :
+                   tensor::desc(weights.get_dims(), wei_data_type, tag::any);
 #endif
 
     if (with_bias) {
