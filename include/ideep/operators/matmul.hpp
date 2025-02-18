@@ -729,7 +729,7 @@ struct matmul_forward : public dnnl::matmul,
             dst_coeff, sum_coeff, attr, dst_type, alowp_kind, aengine);
       }
     } else {
-      do_prepare<with_bias>(param, src, weights, bias, dst, dst_coeff, sum_coeff,
+      do_prepare<with_bias, reorder_src, reorder_weight>(param, src, weights, bias, dst, dst_coeff, sum_coeff,
                  attr, dst_type, aengine);
     }
     do_compute<with_bias, reorder_src, reorder_weight>(
@@ -783,7 +783,7 @@ struct matmul_forward : public dnnl::matmul,
   }
 
   // For fp32 op
-  template <bool with_bias>
+  template <bool with_bias, bool reorder_src = true, bool reorder_weight = true>
   static inline void do_prepare(
       matmul_forward_params& param,
       const tensor& src,
